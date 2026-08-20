@@ -81,6 +81,26 @@ Build against the matching Ubuntu source package:
 
 The resulting module is written to `dist/<kernel-release>/bluetooth.ko`. The build script verifies the module name and vermagic before accepting it.
 
+### Prebuilt module for the confirmed kernel
+
+Release `v0.1.0` includes an unsigned module for exactly `6.17.0-41-generic`. Do not use it on any other ABI. Building locally is preferred; the prebuilt asset is provided for users on the confirmed Ubuntu kernel.
+
+```bash
+git clone --branch v0.1.0 \
+  https://github.com/Mr-V1be/linux-bluetooth-headset-mic-fix.git
+cd linux-bluetooth-headset-mic-fix
+
+curl -LO https://github.com/Mr-V1be/linux-bluetooth-headset-mic-fix/releases/download/v0.1.0/bluetooth-6.17.0-41-generic.ko
+curl -LO https://github.com/Mr-V1be/linux-bluetooth-headset-mic-fix/releases/download/v0.1.0/SHA256SUMS-v0.1.0
+sha256sum --check --ignore-missing SHA256SUMS-v0.1.0
+
+sudo env SOURCE_MODULE="$PWD/bluetooth-6.17.0-41-generic.ko" \
+  ./scripts/install.sh
+sudo reboot
+```
+
+The release also contains the patched Bluetooth source bundle corresponding to the binary module.
+
 ### Install
 
 ```bash
