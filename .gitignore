@@ -1,0 +1,8 @@
+/build/
+/dist/
+/bluetooth-mic-diagnostics-*.txt
+*.ko
+*.o
+*.cmd
+Module.symvers
+modules.order

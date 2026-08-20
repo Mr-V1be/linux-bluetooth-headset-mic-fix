@@ -1,0 +1,86 @@
+name: Bluetooth microphone bug report
+description: Report a first-call/second-call microphone failure or validation result
+title: "[Bug]: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for testing. Please run `./scripts/diagnose.sh` immediately after a failure and review the output before attaching it.
+  - type: input
+    id: distribution
+    attributes:
+      label: Distribution and version
+      placeholder: Ubuntu 25.10
+    validations:
+      required: true
+  - type: input
+    id: kernel
+    attributes:
+      label: Kernel release
+      placeholder: 6.17.0-41-generic
+    validations:
+      required: true
+  - type: input
+    id: adapter
+    attributes:
+      label: Bluetooth adapter
+      placeholder: MediaTek MT7925, USB ID 0489:e111
+    validations:
+      required: true
+  - type: input
+    id: headset
+    attributes:
+      label: Headset
+      placeholder: HUAWEI FreeBuds Pro 4
+    validations:
+      required: true
+  - type: input
+    id: audio_stack
+    attributes:
+      label: PipeWire, WirePlumber, and BlueZ versions
+      placeholder: PipeWire 1.4.7, WirePlumber 0.5.15, BlueZ 5.83
+  - type: input
+    id: codec
+    attributes:
+      label: Active call codec
+      placeholder: mSBC, CVSD, or unknown
+  - type: dropdown
+    id: reconnect
+    attributes:
+      label: Does reconnecting Bluetooth temporarily restore the microphone?
+      options:
+        - "Yes"
+        - "No"
+        - "Not tested"
+    validations:
+      required: true
+  - type: textarea
+    id: attempts
+    attributes:
+      label: Leave/rejoin results
+      description: List every attempt before and after the workaround.
+      placeholder: "Before: working, silent, working, silent, silent\nAfter: working, working, working, working, working"
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant log excerpt
+      description: Paste only reviewed and redacted lines. Attach the diagnostic file separately if needed.
+      render: text
+  - type: textarea
+    id: details
+    attributes:
+      label: Additional details
+      description: Include the application and exact steps to reproduce.
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: Privacy and safety confirmation
+      options:
+        - label: I reviewed all attached logs for device addresses, names, and private call data.
+          required: true
+        - label: I understand that this is an experimental kernel module and kept a bootable stock kernel available.
+          required: true

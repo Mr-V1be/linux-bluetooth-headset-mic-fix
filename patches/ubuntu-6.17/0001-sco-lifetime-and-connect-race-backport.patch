@@ -1,0 +1,136 @@
+From: Linux Bluetooth upstream authors
+Subject: Bluetooth: SCO: backport lifetime and sco_sock_connect race fixes
+
+This is a combined Ubuntu 6.17 backport of:
+
+  abd93c85c8667add738ee82aeab95dd9fc8265a2
+  Bluetooth: SCO: give the socket its own sco_conn reference
+  Author: Aldo Ariel Panzardo <qwe.aldo@gmail.com>
+
+  8a5b0135d4a5d9683203a3d9a12a711ccec5936b
+  Bluetooth: SCO: fix race conditions in sco_sock_connect()
+  Author: Cen Zhang <zzzccc427@gmail.com>
+
+The second change is adjusted for the ownership model introduced by the
+first. See the upstream commits for their complete commit messages and
+Signed-off-by chains.
+
+License: GPL-2.0-only
+
+--- a/net/bluetooth/sco.c
++++ b/net/bluetooth/sco.c
+@@ -190,6 +190,9 @@ static void sco_sock_clear_timer(struct sock *sk)
+ }
+ 
+ /* ---- SCO connections ---- */
++/* Consumes a reference on @hcon, which the returned sco_conn owns until it is
++ * freed. On failure (NULL return) the reference is left for the caller to drop.
++ */
+ static struct sco_conn *sco_conn_add(struct hci_conn *hcon)
+ {
+ 	struct sco_conn *conn = hcon->sco_data;
+@@ -200,6 +203,9 @@ static struct sco_conn *sco_conn_add(struct hci_conn *hcon)
+ 			sco_conn_lock(conn);
+ 			conn->hcon = hcon;
+ 			sco_conn_unlock(conn);
++		} else {
++			/* conn already owns a reference on hcon */
++			hci_conn_drop(hcon);
+ 		}
+ 		return conn;
+ 	}
+@@ -267,10 +273,8 @@ static void sco_conn_del(struct hci_conn *hcon, int err)
+ 	sco_conn_unlock(conn);
+ 	sco_conn_put(conn);
+ 
+-	if (!sk) {
+-		sco_conn_put(conn);
++	if (!sk)
+ 		return;
+-	}
+ 
+ 	/* Kill socket */
+ 	lock_sock(sk);
+@@ -285,7 +289,7 @@ static void __sco_chan_add(struct sco_conn *conn, struct sock *sk,
+ {
+ 	BT_DBG("conn %p", conn);
+ 
+-	sco_pi(sk)->conn = conn;
++	sco_pi(sk)->conn = sco_conn_hold(conn);
+ 	conn->sk = sk;
+ 
+ 	if (parent)
+@@ -298,7 +302,7 @@ static int sco_chan_add(struct sco_conn *conn, struct sock *sk,
+ 	int err = 0;
+ 
+ 	sco_conn_lock(conn);
+-	if (conn->sk)
++	if (conn->sk || sco_pi(sk)->conn)
+ 		err = -EBUSY;
+ 	else
+ 		__sco_chan_add(conn, sk, parent);
+@@ -353,7 +357,18 @@ static int sco_connect(struct sock *sk)
+ 
+ 	lock_sock(sk);
+ 
++	/* Recheck state after reacquiring the socket lock, as another
++	 * thread may have changed it (e.g., closed the socket).
++	 */
++	if (sk->sk_state != BT_OPEN && sk->sk_state != BT_BOUND) {
++		release_sock(sk);
++		sco_conn_put(conn);
++		err = -EBADFD;
++		goto unlock;
++	}
++
+ 	err = sco_chan_add(conn, sk, NULL);
++	sco_conn_put(conn);
+ 	if (err) {
+ 		release_sock(sk);
+ 		goto unlock;
+@@ -651,13 +666,18 @@ static int sco_sock_connect(struct socket *sock, struct sockaddr *addr,
+ 	    addr->sa_family != AF_BLUETOOTH)
+ 		return -EINVAL;
+ 
+-	if (sk->sk_state != BT_OPEN && sk->sk_state != BT_BOUND)
++	lock_sock(sk);
++
++	if (sk->sk_state != BT_OPEN && sk->sk_state != BT_BOUND) {
++		release_sock(sk);
+ 		return -EBADFD;
++	}
+ 
+-	if (sk->sk_type != SOCK_SEQPACKET)
+-		err = -EINVAL;
++	if (sk->sk_type != SOCK_SEQPACKET) {
++		release_sock(sk);
++		return -EINVAL;
++	}
+ 
+-	lock_sock(sk);
+ 	/* Set destination address and psm */
+ 	bacpy(&sco_pi(sk)->dst, &sa->sco_bdaddr);
+ 	release_sock(sk);
+@@ -1383,8 +1403,6 @@ static void sco_conn_ready(struct sco_conn *conn)
+ 		bacpy(&sco_pi(sk)->src, &conn->hcon->src);
+ 		bacpy(&sco_pi(sk)->dst, &conn->hcon->dst);
+ 
+-		sco_conn_hold(conn);
+-		hci_conn_hold(conn->hcon);
+ 		__sco_chan_add(conn, sk, parent);
+ 
+ 		if (test_bit(BT_SK_DEFER_SETUP, &bt_sk(parent)->flags))
+@@ -1439,10 +1457,12 @@ static void sco_connect_cfm(struct hci_conn *hcon, __u8 status)
+ 	if (!status) {
+ 		struct sco_conn *conn;
+ 
+-		conn = sco_conn_add(hcon);
++		conn = sco_conn_add(hci_conn_hold(hcon));
+ 		if (conn) {
+ 			sco_conn_ready(conn);
+ 			sco_conn_put(conn);
++		} else {
++			hci_conn_drop(hcon);
+ 		}
+ 	} else
+ 		sco_conn_del(hcon, bt_to_errno(status));
