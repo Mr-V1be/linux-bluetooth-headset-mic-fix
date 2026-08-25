@@ -12,6 +12,7 @@ require_root
 require_command depmod
 require_command modinfo
 require_command sha256sum
+require_command update-initramfs
 
 KERNEL_RELEASE=${KERNEL_RELEASE:-$(uname -r)}
 validate_kernel_release "$KERNEL_RELEASE"
@@ -60,6 +61,9 @@ if [[ $RESOLVED_MODULE != "$TARGET_MODULE" ]]; then
 else
   log "installed module for $KERNEL_RELEASE"
 fi
+
+log "updating initramfs for $KERNEL_RELEASE"
+update-initramfs -u -k "$KERNEL_RELEASE"
 
 log "no live module was unloaded; reboot to activate the fix"
 log "rollback: sudo ./scripts/uninstall.sh && sudo reboot"

@@ -9,6 +9,7 @@ source "$SCRIPT_DIR/common.sh"
 
 require_root
 require_command depmod
+require_command update-initramfs
 
 KERNEL_RELEASE=${KERNEL_RELEASE:-$(uname -r)}
 validate_kernel_release "$KERNEL_RELEASE"
@@ -42,5 +43,7 @@ esac
 rm -f -- "$STATE_FILE" "$STATE_DIR/installed.sha256" "$BACKUP_MODULE"
 rmdir --ignore-fail-on-non-empty "$STATE_DIR" "$TARGET_DIR" 2>/dev/null || true
 depmod "$KERNEL_RELEASE"
+log "updating initramfs for $KERNEL_RELEASE"
+update-initramfs -u -k "$KERNEL_RELEASE"
 
 log "no live module was unloaded; reboot to complete the rollback"

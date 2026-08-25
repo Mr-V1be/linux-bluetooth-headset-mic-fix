@@ -83,16 +83,16 @@ The resulting module is written to `dist/<kernel-release>/bluetooth.ko`. The bui
 
 ### Prebuilt module for the confirmed kernel
 
-Release `v0.1.0` includes an unsigned module for exactly `6.17.0-41-generic`. Do not use it on any other ABI. Building locally is preferred; the prebuilt asset is provided for users on the confirmed Ubuntu kernel.
+Release `v0.1.1` includes an unsigned module for exactly `6.17.0-41-generic`. Do not use it on any other ABI. Building locally is preferred; the prebuilt asset is provided for users on the confirmed Ubuntu kernel.
 
 ```bash
-git clone --branch v0.1.0 \
+git clone --branch v0.1.1 \
   https://github.com/Mr-V1be/linux-bluetooth-headset-mic-fix.git
 cd linux-bluetooth-headset-mic-fix
 
-curl -LO https://github.com/Mr-V1be/linux-bluetooth-headset-mic-fix/releases/download/v0.1.0/bluetooth-6.17.0-41-generic.ko
-curl -LO https://github.com/Mr-V1be/linux-bluetooth-headset-mic-fix/releases/download/v0.1.0/SHA256SUMS-v0.1.0
-sha256sum --check --ignore-missing SHA256SUMS-v0.1.0
+curl -LO https://github.com/Mr-V1be/linux-bluetooth-headset-mic-fix/releases/download/v0.1.1/bluetooth-6.17.0-41-generic.ko
+curl -LO https://github.com/Mr-V1be/linux-bluetooth-headset-mic-fix/releases/download/v0.1.1/SHA256SUMS-v0.1.1
+sha256sum --check --ignore-missing SHA256SUMS-v0.1.1
 
 sudo env SOURCE_MODULE="$PWD/bluetooth-6.17.0-41-generic.ko" \
   ./scripts/install.sh
@@ -108,12 +108,18 @@ sudo ./scripts/install.sh
 sudo reboot
 ```
 
-The installer backs up any existing override, installs only for the current kernel, runs `depmod`, and never unloads the live Bluetooth stack. After reboot:
+The installer backs up any existing override, installs only for the current kernel, runs `depmod`, rebuilds that kernel's initramfs, and never unloads the live Bluetooth stack. Rebuilding initramfs is required because Ubuntu may load the Bluetooth core early in boot; without it, the stock module can remain embedded and win over the on-disk override.
+
+After reboot:
 
 ```bash
 modinfo -n bluetooth
 modinfo -F vermagic bluetooth
+printf 'on disk: '; modinfo -F srcversion bluetooth
+printf 'running: '; cat /sys/module/bluetooth/srcversion
 ```
+
+The two `srcversion` values must match. A mismatch means the running module came from an older initramfs. Re-run `sudo update-initramfs -u -k "$(uname -r)"` and reboot.
 
 ### Uninstall
 
@@ -122,7 +128,7 @@ sudo ./scripts/uninstall.sh
 sudo reboot
 ```
 
-Uninstall restores a previous override when one existed; otherwise it removes this project's module so the stock Ubuntu module becomes active again.
+Uninstall restores a previous override when one existed; otherwise it removes this project's module so the stock Ubuntu module becomes active again. It also rebuilds the matching initramfs before asking you to reboot.
 
 ## Limitations
 

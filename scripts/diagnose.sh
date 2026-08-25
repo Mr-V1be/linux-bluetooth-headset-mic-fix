@@ -53,9 +53,16 @@ collect() {
   run_optional "PipeWire status" wpctl status
 
   section "Bluetooth module"
-  modinfo -n bluetooth 2>&1 || true
-  modinfo -F vermagic bluetooth 2>&1 || true
-  modinfo -F signer bluetooth 2>&1 || true
+  printf 'resolved_path=%s\n' "$(modinfo -n bluetooth 2>&1 || true)"
+  printf 'on_disk_srcversion=%s\n' "$(modinfo -F srcversion bluetooth 2>&1 || true)"
+  printf 'running_srcversion='
+  if [[ -r /sys/module/bluetooth/srcversion ]]; then
+    cat /sys/module/bluetooth/srcversion
+  else
+    printf 'not-loaded\n'
+  fi
+  printf 'vermagic=%s\n' "$(modinfo -F vermagic bluetooth 2>&1 || true)"
+  printf 'signer=%s\n' "$(modinfo -F signer bluetooth 2>&1 || true)"
   if [[ -r /sys/module/bluetooth/parameters/disable_esco ]]; then
     printf 'disable_esco='
     cat /sys/module/bluetooth/parameters/disable_esco
