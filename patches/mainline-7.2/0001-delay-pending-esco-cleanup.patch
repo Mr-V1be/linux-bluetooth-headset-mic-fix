@@ -1,0 +1,92 @@
+From: MrV1be project contributors
+Subject: Bluetooth: delay cleanup while outgoing SCO/eSCO setup is pending
+
+Setup Synchronous Connection has no matching HCI cancellation command.
+When the last host reference disappears in BT_CONNECT, immediate deletion
+can race a successful controller completion and leave an orphan eSCO handle.
+
+Delay pending SCO/eSCO cleanup by HCI_DISCONN_TIMEOUT. Other link types and
+other SCO/eSCO states retain their existing behavior.
+
+This external-module build uses an include_next wrapper so no installed
+kernel header is modified.
+
+License: GPL-2.0-only
+
+--- a/net/bluetooth/Makefile
++++ b/net/bluetooth/Makefile
+@@ -3,6 +3,11 @@
+ # Makefile for the Linux Bluetooth subsystem.
+ #
+ 
++# Override hci_conn_drop() only inside this external bluetooth.ko build.
++# The wrapper delegates all other declarations to the matching installed kernel header.
++ccflags-y += -I$(src)/include
++ccflags-y += -include $(src)/include/net/bluetooth/hci_core.h
++
+ obj-$(CONFIG_BT)	+= bluetooth.o
+ obj-$(CONFIG_BT_RFCOMM)	+= rfcomm/
+ obj-$(CONFIG_BT_BNEP)	+= bnep/
+--- /dev/null
++++ b/net/bluetooth/include/net/bluetooth/hci_core.h
+@@ -0,0 +1,60 @@
++/* SPDX-License-Identifier: GPL-2.0 */
++#ifndef _BLUETOOTH_MIC_FIX_HCI_CORE_WRAPPER_H
++#define _BLUETOOTH_MIC_FIX_HCI_CORE_WRAPPER_H
++
++#include <net/bluetooth/bluetooth.h>
++
++/* Preserve the stock implementation under a private name, then provide the
++ * same implementation with one targeted change. An outgoing SCO/eSCO link
++ * whose HCI setup is pending must not be deleted immediately because HCI has
++ * no command that cancels Setup Synchronous Connection. The controller can
++ * report success after host-side deletion and leave an orphan link.
++ */
++#define hci_conn_drop hci_conn_drop_stock_original
++#include_next <net/bluetooth/hci_core.h>
++#undef hci_conn_drop
++
++static inline void hci_conn_drop(struct hci_conn *conn)
++{
++	BT_DBG("hcon %p orig refcnt %d", conn, atomic_read(&conn->refcnt));
++
++	if (atomic_dec_and_test(&conn->refcnt)) {
++		unsigned long timeo;
++
++		switch (conn->type) {
++		case ACL_LINK:
++		case LE_LINK:
++			cancel_delayed_work(&conn->idle_work);
++			if (conn->state == BT_CONNECTED) {
++				timeo = conn->disc_timeout;
++				if (!conn->out)
++					timeo *= 2;
++			} else {
++				timeo = 0;
++			}
++			break;
++
++		case SCO_LINK:
++		case ESCO_LINK:
++			if (conn->state == BT_CONNECT) {
++				timeo = HCI_DISCONN_TIMEOUT;
++				bt_dev_info(conn->hdev,
++					    "bluetooth-mic-fix: delaying pending eSCO cleanup by %u ms",
++					    jiffies_to_msecs(timeo));
++			} else {
++				timeo = 0;
++			}
++			break;
++
++		default:
++			timeo = 0;
++			break;
++		}
++
++		cancel_delayed_work(&conn->disc_work);
++		queue_delayed_work(conn->hdev->workqueue,
++				   &conn->disc_work, timeo);
++	}
++}
++
++#endif /* _BLUETOOTH_MIC_FIX_HCI_CORE_WRAPPER_H */

@@ -2,6 +2,14 @@
 
 All notable project changes are documented here.
 
+## [Unreleased]
+
+### Added
+
+- `scripts/build-mainline.sh` for Pop!_OS / System76 7.2.x kernels when the distro `linux-source` package is a stub.
+- `patches/mainline-7.2/` series with only the delayed pending-eSCO cleanup (SCO lifetime fixes already in v7.2.15).
+- Documentation and kernel allow-list for Pop!_OS `7.2.*-76070*-generic` (MediaTek MT7925 `0489:e11e`, Sony WF-1000XM6).
+
 ## [0.1.1] - 2026-08-25
 
 ### Fixed
