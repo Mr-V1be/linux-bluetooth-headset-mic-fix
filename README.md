@@ -38,6 +38,8 @@ It is not intended for missing browser permission, a muted microphone, a broken 
 - BlueZ 5.83
 - mSBC / transparent-air-mode eSCO
 
+Additional build path: Pop!_OS 7.2.x / MT7925 (`0489:e11e`) / WF-1000XM6 - see [Build on Pop!_OS](#build-on-popos-2404-kernel-72x).
+
 Reports from other headsets, adapters, distributions, and kernel versions are welcome.
 
 ## What the workaround changes
@@ -48,8 +50,8 @@ The local workaround delays cleanup of a pending `BT_CONNECT` SCO/eSCO object by
 
 The Ubuntu 6.17 backport also includes two upstream SCO lifetime/race fixes:
 
-- [`abd93c85c866`](https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=abd93c85c8667add738ee82aeab95dd9fc8265a2) — give the socket its own `sco_conn` reference, by Aldo Ariel Panzardo.
-- [`8a5b0135d4a5`](https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=8a5b0135d4a5d9683203a3d9a12a711ccec5936b) — fix races in `sco_sock_connect()`, by Cen Zhang.
+- [`abd93c85c866`](https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/commit/?id=abd93c85c8667add738ee82aeab95dd9fc8265a2) - give the socket its own `sco_conn` reference, by Aldo Ariel Panzardo.
+- [`8a5b0135d4a5`](https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/commit/?id=8a5b0135d4a5d9683203a3d9a12a711ccec5936b) - fix races in `sco_sock_connect()`, by Cen Zhang.
 
 See [docs/root-cause.md](docs/root-cause.md) for the observed event sequence and evidence.
 
@@ -80,6 +82,38 @@ Build against the matching Ubuntu source package:
 ```
 
 The resulting module is written to `dist/<kernel-release>/bluetooth.ko`. The build script verifies the module name and vermagic before accepting it.
+
+## Build on Pop!_OS 24.04 (kernel 7.2.x)
+
+Pop!_OS ships a stub `linux-source-*` package, so `./scripts/build-ubuntu.sh` cannot extract Bluetooth sources. Use the mainline builder instead. It sparse-checkouts `net/bluetooth` from the matching stable tag (for example `7.2.15-76070215-generic` -> `v7.2.15`) and applies only the delayed pending-eSCO cleanup patch. The SCO lifetime / `sco_sock_connect` fixes are already present in v7.2.15.
+
+Validated locally on:
+
+- Pop!_OS 24.04 LTS
+- Linux `7.2.15-76070215-generic`
+- MediaTek MT7925 Bluetooth (`0489:e11e`)
+- Sony WF-1000XM6
+- PipeWire 1.6.8 / WirePlumber 0.5.12 / BlueZ 5.72
+
+```bash
+sudo apt update
+sudo apt install build-essential git make patch \
+  "linux-headers-$(uname -r)"
+
+./scripts/build-mainline.sh
+sudo ./scripts/install.sh
+sudo reboot
+```
+
+After reboot, confirm the override is live:
+
+```bash
+modinfo -n bluetooth
+printf 'on disk: '; modinfo -F srcversion bluetooth
+printf 'running: '; cat /sys/module/bluetooth/srcversion
+```
+
+The two `srcversion` values must match.
 
 ### Prebuilt module for the confirmed kernel
 
@@ -132,7 +166,7 @@ Uninstall restores a previous override when one existed; otherwise it removes th
 
 ## Limitations
 
-- Automated building currently supports Ubuntu generic 6.17 kernels only.
+- Automated building supports Ubuntu generic 6.17 (`build-ubuntu.sh`) and Pop!_OS 7.2.x (`build-mainline.sh`).
 - Kernel modules are ABI-specific. Rebuild after every kernel ABI update.
 - Unsigned modules do not load with Secure Boot enforcement. The installer refuses that configuration instead of weakening Secure Boot.
 - A kernel crash is possible when testing kernel code. Keep another installed kernel in the boot menu.
