@@ -1,7 +1,12 @@
-.PHONY: build diagnose install uninstall check clean
+.PHONY: build build-ubuntu build-mainline diagnose install uninstall check clean
 
-build:
+build: build-ubuntu
+
+build-ubuntu:
 	./scripts/build-ubuntu.sh
+
+build-mainline:
+	./scripts/build-mainline.sh
 
 diagnose:
 	./scripts/diagnose.sh

@@ -29,8 +29,15 @@ require_root() {
 validate_kernel_release() {
   local release=$1
 
-  [[ $release =~ ^6\.17\.0-[0-9]+-generic$ ]] ||
-    die "unsupported kernel '$release'; automated builds currently support Ubuntu generic 6.17 only"
+  # Ubuntu 6.17 (original automated build)
+  if [[ $release =~ ^6\.17\.0-[0-9]+-generic$ ]]; then
+    return 0
+  fi
+  # Pop!_OS / System76 7.2.x (mainline-based bluetooth.ko via build-mainline.sh)
+  if [[ $release =~ ^7\.2\.[0-9]+-76070[0-9]+-generic$ ]]; then
+    return 0
+  fi
+  die "unsupported kernel '$release'; supported: Ubuntu 6.17 generic or Pop!_OS 7.2.x System76"
 }
 
 secure_boot_enabled() {
